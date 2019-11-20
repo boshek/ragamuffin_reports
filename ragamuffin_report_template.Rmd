@@ -1,0 +1,96 @@
+---
+title: "Ragamuffin Reports"
+author: "Sam Albers"
+date: "`r Sys.Date()`"
+output: pdf_document
+params: 
+  artist: 'buck owens'
+  song1: 'foo1'
+  song2: 'foo2'
+---
+
+```{r, warning=FALSE, echo=FALSE}
+
+ggplot2::theme_set(ggplot2::theme_minimal())
+
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.align = "center",
+                      fig.width=12,
+                      fig.height = 12)
+
+#ggplot2::scale_colour_continuous <- ggplot2::scale_colour_viridis_c
+
+#params <- dplyr::tibble(artist = "kris kristofferson")
+```
+
+
+```{r, echo=FALSE}
+library(spotifyr)
+library(dplyr, warn.conflicts = FALSE)
+library(usethis)
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+```
+
+```{r}
+raw <- get_artist_audio_features(params$artist)
+```
+
+# `r tools::toTitleCase(params$artist)`
+
+## Songs chosen
+ - `r tools::toTitleCase(params$song1)`
+ - `r tools::toTitleCase(params$song2)`
+
+## Key
+```{r}
+raw %>% 
+  count(key_mode, sort = TRUE) %>% 
+  kable()
+```
+
+## Time Signature
+```{r}
+raw %>% 
+  count(time_signature, sort = TRUE) %>% 
+  kable()
+```
+
+## Cumulative Albums
+```{r}
+cumulative_albums <- raw %>% 
+  select(album_release_year, album_name) %>% 
+  distinct(.keep_all = TRUE) %>% 
+  count(album_release_year) %>% 
+  arrange(album_release_year) %>% 
+  mutate(albums = cumsum(n))
+
+ggplot(cumulative_albums, aes(x = album_release_year, y = albums)) +
+  geom_line()
+```
+
+## Audio Features
+
+```{r}
+songs <- raw %>% 
+  filter(track_name %in% c(params$song1, params$song2)) %>% 
+  select(danceability:tempo, duration_ms, track_name) %>% 
+  gather(key = "key", value = "value", -track_name) %>% 
+  mutate(key = tools::toTitleCase(key))
+```
+
+
+```{r}
+raw %>% 
+  select(danceability:tempo, duration_ms) %>% 
+  gather() %>% 
+  mutate(key = tools::toTitleCase(key)) %>% 
+  ggplot() +
+  geom_histogram(aes(x = value), fill = "blue") +
+  geom_vline(data = songs, aes(xintercept = value, colour = track_name)) +
+  facet_wrap(~key, scales = "free")
+```
+
