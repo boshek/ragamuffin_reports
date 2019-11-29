@@ -7,6 +7,8 @@ params:
   artist: 'buck owens'
   song1: 'foo1'
   song2: 'foo2'
+  song1id: 'doo1'
+  song2id: 'doo1'
 ---
 
 ```{r, warning=FALSE, echo=FALSE}
@@ -22,7 +24,7 @@ knitr::opts_chunk$set(echo = FALSE,
 
 #ggplot2::scale_colour_continuous <- ggplot2::scale_colour_viridis_c
 
-#params <- dplyr::tibble(artist = "kris kristofferson")
+#params <- dplyr::tibble(artist = "merle haggard")
 ```
 
 
@@ -32,6 +34,7 @@ library(dplyr, warn.conflicts = FALSE)
 library(usethis)
 library(ggplot2)
 library(tidyr)
+library(purrr)
 library(kableExtra)
 ```
 
@@ -42,21 +45,19 @@ raw <- get_artist_audio_features(params$artist)
 # `r tools::toTitleCase(params$artist)`
 
 ## Songs chosen
- - `r tools::toTitleCase(params$song1)`
- - `r tools::toTitleCase(params$song2)`
+ 1 `r tools::toTitleCase(params$song1)`
+ 2 `r tools::toTitleCase(params$song2)`
 
 ## Key
 ```{r}
 raw %>% 
-  count(key_mode, sort = TRUE) %>% 
-  kable()
+  count(key_mode, sort = TRUE) 
 ```
 
 ## Time Signature
 ```{r}
 raw %>% 
-  count(time_signature, sort = TRUE) %>% 
-  kable()
+  count(time_signature, sort = TRUE)
 ```
 
 ## Cumulative Albums
@@ -75,10 +76,9 @@ ggplot(cumulative_albums, aes(x = album_release_year, y = albums)) +
 ## Audio Features
 
 ```{r}
-songs <- raw %>% 
-  filter(track_name %in% c(params$song1, params$song2)) %>% 
-  select(danceability:tempo, duration_ms, track_name) %>% 
-  gather(key = "key", value = "value", -track_name) %>% 
+songs <-  map_dfr(c(params$song1id, params$song2id), get_track_audio_features, .id = "songid") %>% 
+  select(danceability:tempo, duration_ms, songid) %>% 
+  gather(key = "key", value = "value", -songid) %>% 
   mutate(key = tools::toTitleCase(key))
 ```
 
@@ -90,7 +90,24 @@ raw %>%
   mutate(key = tools::toTitleCase(key)) %>% 
   ggplot() +
   geom_histogram(aes(x = value), fill = "blue") +
-  geom_vline(data = songs, aes(xintercept = value, colour = track_name)) +
+  geom_vline(data = songs, aes(xintercept = value, colour = songid)) +
   facet_wrap(~key, scales = "free")
+```
+
+## Audio Analysis
+```{r}
+get_sections <- function(x) {
+  s <- get_track_audio_analysis(x)
+  sections <- s$sections
+  
+  sections <- select(sections, start, loudness, tempo)
+}
+
+audio_song <- map_dfr(c(params$song1id, params$song2id), get_sections, .id = "songid") %>% 
+  gather(key = "analysis", value = "value", -songid, -start)
+
+ggplot(audio_song, aes(x = start, y = value, colour = songid)) +
+  geom_line() +
+  facet_wrap(~analysis, ncol = 1, scales = "free_y")
 ```
 
